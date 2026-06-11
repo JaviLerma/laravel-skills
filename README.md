@@ -16,3 +16,9 @@ php artisan boost:add-skill JaviLerma/laravel-skills
 ```bash
 npx skills add JaviLerma/laravel-skills
 ```
+
+## Codex plugin
+
+Este repo tambien contiene una estructura de plugin Codex en la raiz, con el manifest en `.codex-plugin/plugin.json` y los skills del plugin en `skills/`.
+
+La entrada de marketplace para instalarlo desde la UI de Codex queda para un paso posterior.

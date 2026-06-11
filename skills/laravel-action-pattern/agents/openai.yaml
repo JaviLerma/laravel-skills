@@ -1,0 +1,4 @@
+interface:
+  display_name: "Laravel Action Pattern"
+  short_description: "Apply pragmatic Laravel action classes"
+  default_prompt: "Use $laravel-action-pattern to move this Laravel business logic into reusable action classes."
