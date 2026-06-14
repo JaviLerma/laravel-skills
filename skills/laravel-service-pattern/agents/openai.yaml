@@ -1,0 +1,4 @@
+interface:
+  display_name: "Laravel Service Pattern"
+  short_description: "Cohesive Laravel services for reusable capabilities"
+  default_prompt: "Use $laravel-service-pattern to design this Laravel service as a cohesive capability with clear boundaries."
