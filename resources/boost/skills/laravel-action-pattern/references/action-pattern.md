@@ -1,11 +1,13 @@
-# Referencia de Laravel Action Pattern
+# Laravel Action Pattern Reference
 
-Usar estos ejemplos como defaults cuando el proyecto no tenga una convencion local mas fuerte.
+Use these examples as defaults when the project does not have a stronger local convention.
 
 ## Controller + Form Request + Action
 
 ```php
 <?php
+
+declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
@@ -21,26 +23,28 @@ class UserController
         User $user,
         UpdateUser $updateUser,
     ): UserResource {
-        $user = $updateUser($user, $request->validated());
+        $user = $updateUser->handle($user, $request->validated());
 
         return UserResource::make($user);
     }
 }
 ```
 
-Responsabilidades del controller:
+Controller responsibilities:
 
-- Aceptar objetos de la capa HTTP, como `FormRequest`.
-- Usar route model binding cuando encaje con la ruta.
-- Extraer payloads validados con `validated()` o `safe()`.
-- Devolver redirects, JSON responses, resources o views.
+- Accept HTTP-layer objects such as `FormRequest`.
+- Use route model binding when it fits the route.
+- Extract validated payloads with `validated()` or `safe()`.
+- Return redirects, JSON responses, resources, or views.
 
-No pasar el request object a la Action.
+Do not pass the request object to the Action.
 
-## Action Invocable Con Array Shape
+## Action With Array Shape
 
 ```php
 <?php
+
+declare(strict_types=1);
 
 namespace App\Actions;
 
@@ -52,6 +56,7 @@ class UpdateUser
     public function __construct(
         private readonly CreateActivity $createActivity,
     ) {
+        //
     }
 
     /**
@@ -60,7 +65,7 @@ class UpdateUser
      *     email: string
      * } $data
      */
-    public function __invoke(User $user, array $data): User
+    public function handle(User $user, array $data): User
     {
         return DB::transaction(function () use ($user, $data): User {
             $emailChanged = $user->email !== $data['email'];
@@ -70,7 +75,7 @@ class UpdateUser
                 'email' => $data['email'],
             ])->save();
 
-            ($this->createActivity)(
+            $this->createActivity->handle(
                 user: $user,
                 description: 'Updated profile',
             );
@@ -86,17 +91,45 @@ class UpdateUser
 }
 ```
 
-Responsabilidades de la Action:
+Action responsibilities:
 
-- Ejecutar la mutacion de negocio.
-- Coordinar otras Actions o servicios mediante constructor injection.
-- Usar transacciones alrededor de cambios de base de datos relacionados.
-- Devolver resultados de dominio, no HTTP responses.
+- Execute the business mutation.
+- Coordinate other Actions or services through constructor injection with private properties.
+- Use transactions around related database changes, especially when multiple models are involved.
+- Return domain results, not HTTP responses.
+
+Create new Actions with:
+
+```bash
+php artisan make:action "UpdateUser" --no-interaction
+```
+
+Actions without dependencies can omit `__construct` and expose only `handle(...)`:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Actions;
+
+use App\Models\User;
+
+final class MarkUserEmailAsVerified
+{
+    public function handle(User $user): bool
+    {
+        return $user->markEmailAsVerified();
+    }
+}
+```
 
 ## Form Request Validation
 
 ```php
 <?php
+
+declare(strict_types=1);
 
 namespace App\Http\Requests;
 
@@ -130,12 +163,14 @@ class UpdateUserRequest extends FormRequest
 }
 ```
 
-La Action asume que esta validacion ya ocurrio. No duplicar validacion de request dentro de la Action salvo que se trate de una invariante de dominio no especifica de HTTP.
+The Action assumes this validation has already happened. Do not duplicate request validation inside the Action unless the rule is a domain invariant that is not specific to HTTP.
 
-## Reutilizacion Desde Jobs O Commands
+## Reuse From Jobs Or Commands
 
 ```php
 <?php
+
+declare(strict_types=1);
 
 namespace App\Jobs;
 
@@ -148,7 +183,7 @@ class SyncUserProfile
     {
         $user = User::query()->findOrFail($this->userId);
 
-        $updateUser($user, [
+        $updateUser->handle($user, [
             'name' => $this->name,
             'email' => $this->email,
         ]);
@@ -156,12 +191,14 @@ class SyncUserProfile
 }
 ```
 
-Jobs y commands pueden reutilizar Actions porque la Action no depende de la capa HTTP. Validar o construir datos confiables antes de invocar la Action desde capas no HTTP.
+Jobs and commands can reuse Actions because the Action does not depend on the HTTP layer. Validate or build trusted data before invoking the Action from non-HTTP layers.
 
-## Destroy Account: Limite HTTP
+## Destroy Account: HTTP Boundary
 
 ```php
 <?php
+
+declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
@@ -176,7 +213,7 @@ class AccountController
     {
         $user = $request->user();
 
-        $destroyAccount($user);
+        $destroyAccount->handle($user);
 
         Auth::guard('web')->logout();
         $request->session()->invalidate();
@@ -187,31 +224,31 @@ class AccountController
 }
 ```
 
-La Action borra datos de cuenta. El controller hace logout, invalida estado de sesion y devuelve el redirect porque eso pertenece a HTTP/session.
+The Action deletes account data. The controller logs out, invalidates session state, and returns the redirect because those responsibilities belong to HTTP/session.
 
-## Regla Para DTOs
+## DTO Rule
 
-Usar array shape primero:
+Use an array shape first:
 
 ```php
 /**
  * @param array{name: string, email: string} $data
  */
-public function __invoke(User $user, array $data): User
+public function handle(User $user, array $data): User
 ```
 
-Usar DTO cuando:
+Use a DTO when:
 
-- El mismo payload se construye en varias capas.
-- El payload tiene transformaciones o invariantes propias.
-- El analisis estatico necesita garantias mas fuertes que array shapes.
-- El proyecto ya tiene una convencion establecida de DTOs.
+- The same payload is built in several layers.
+- The payload has its own transformations or invariants.
+- Static analysis needs stronger guarantees than array shapes provide.
+- The project already has an established DTO convention.
 
 ## Queries
 
-No crear Actions para cada lectura por default.
+Do not create Actions for every read by default.
 
-Mantener esto inline o en abstracciones de query existentes:
+Keep this inline or in existing query abstractions:
 
 ```php
 $users = User::query()
@@ -220,8 +257,8 @@ $users = User::query()
     ->paginate();
 ```
 
-Crear un query object o read action solo cuando la query sea reutilizada, compleja o exprese lenguaje de negocio que merezca un nombre.
+Create a query object or read action only when the query is reused, complex, or expresses business language that deserves a name.
 
-## Events, Observers Y Explicitud
+## Events, Observers, And Explicitness
 
-Preferir Actions para workflows centrales de negocio porque la secuencia queda visible en un lugar. Usar events u observers cuando la reaccion sea intencionalmente desacoplada, opcional o transversal. Evitar side effects sorpresivos donde una migration, seeder o script de mantenimiento actualiza un model y termina enviando notifications inesperadas.
+Prefer Actions for central business workflows because the sequence stays visible in one place. Use events or observers when the reaction is intentionally decoupled, optional, or cross-cutting. Avoid surprising side effects where a migration, seeder, or maintenance script updates a model and unexpectedly sends notifications.

@@ -1,59 +1,62 @@
 ---
 name: laravel-action-pattern
-description: Enseña y aplica Action Pattern en aplicaciones Laravel usando clases Action propias. Usar cuando Codex necesite refactorizar controladores Laravel, mover business logic fuera de controllers o models, crear acciones reutilizables, decidir donde van validacion y HTTP concerns, usar Form Requests con datos validados, agregar transacciones de base de datos alrededor de mutaciones, reutilizar logica desde controllers, jobs o console commands, o discutir convenciones pragmaticas de Laravel Actions sin paquetes externos.
+description: Teach and apply the Laravel Action Pattern with first-party Action classes. Use when Codex needs to refactor Laravel controllers, move business logic out of controllers or models, create reusable and composable actions in app/Actions, decide where validation and HTTP concerns belong, use Form Requests with validated data, add database transactions around mutations, reuse logic from controllers, jobs, console commands, API requests, MCP requests, or discuss pragmatic Laravel Action conventions without external packages.
 ---
 
 # Laravel Action Pattern
 
-## Flujo
+## Workflow
 
-1. Inspeccionar el proyecto Laravel antes de cambiar codigo:
-   - Identificar la version de Laravel desde `composer.json`, paquetes instalados, namespaces, estilo de controllers, convenciones de Form Requests, y si ya existen `app/Actions` o clases similares.
-   - Si la tarea depende del comportamiento actual de una API de Laravel, usar Context7 para consultar la documentacion de Laravel antes de responder o editar.
-   - Preferir el estilo existente del proyecto salvo que contradiga los limites del Action Pattern definidos abajo.
+1. Inspect the Laravel project before changing code:
+   - Identify the Laravel version from `composer.json`, installed packages, namespaces, controller style, Form Request conventions, and whether `app/Actions` or similar classes already exist.
+   - If the task depends on current Laravel API behavior, use Context7 to consult the Laravel documentation before answering or editing.
+   - Prefer the existing project style unless it conflicts with the Action Pattern boundaries below.
 
-2. Mantener el controller a cargo de la capa HTTP:
-   - Type-hintear el `FormRequest`, modelos por route model binding, fuente del usuario autenticado y la Action.
-   - Llamar `$request->validated()` o `$request->safe()->...` antes de invocar la Action.
-   - Mantener redirects, JSON/resources, session invalidation, logout, response codes y comportamiento exclusivo del request en el controller.
+2. Keep the controller responsible for the HTTP layer:
+   - Type-hint the `FormRequest`, route model bound models, authenticated user source, and Action.
+   - Call `$request->validated()` or `$request->safe()->...` before invoking the Action.
+   - Keep redirects, JSON/resources, session invalidation, logout, response codes, and request-only behavior in the controller.
 
-3. Poner mutaciones de negocio en clases Action:
-   - Ubicacion default para proyectos nuevos: carpeta plana `app/Actions`.
-   - Nombrar Actions con verbo + objeto, como `CreateActivity`, `UpdateUser` o `DestroyAccount`.
-   - Preferir Actions invocables con `__invoke(...)`; usar `handle(...)` solo si el proyecto ya usa ese estilo.
-   - Pasar objetos de dominio y datos escalares/arrays ya validados. No pasar `Request`, `FormRequest`, `RedirectResponse`, sesiones ni HTTP responses a las Actions.
+3. Put business mutations in Action classes:
+   - Default location for new projects: a flat `app/Actions` directory.
+   - Create new actions with `php artisan make:action "{name}" --no-interaction`.
+   - Name Actions after what they do, with no suffix, such as `CreateActivity`, `UpdateUser`, or `DestroyAccount`.
+   - Give each Action a single `handle(...)` method. Do not make Actions invokable by default.
+   - Inject dependencies through the constructor using private properties. Actions without dependencies can omit `__construct` and expose only `handle(...)`.
+   - Pass domain objects and already validated scalar/array data. Do not pass `Request`, `FormRequest`, `RedirectResponse`, sessions, or HTTP responses to Actions.
 
-4. Tratar la validacion como completa antes de entrar a la Action:
-   - El `FormRequest` es responsable de validacion y autorizacion del request.
-   - La Action puede hacer cumplir invariantes de dominio, pero no debe repetir reglas de validacion HTTP.
-   - Usar arrays con PHPDoc array shapes por default para payloads simples.
-   - Introducir DTOs solo cuando el payload sea complejo, compartido entre capas, o necesite comportamiento/invariantes propias.
+4. Treat validation as complete before entering the Action:
+   - The `FormRequest` is responsible for request validation and authorization.
+   - The Action may enforce domain invariants, but it must not repeat HTTP validation rules.
+   - Use arrays with PHPDoc array shapes by default for simple payloads.
+   - Introduce DTOs only when the payload is complex, shared across layers, or needs its own behavior/invariants.
 
-5. Usar transacciones deliberadamente:
-   - Envolver mutaciones relacionadas en `DB::transaction()` para que las excepciones hagan rollback de la unidad de trabajo.
-   - Considerar retries ante deadlocks en caminos con contencion.
-   - Para emails, events, jobs, notifications o APIs externas, decidir si el efecto debe ocurrir after commit, dentro de la transaccion o fuera de ella. Preferir after-commit cuando el efecto no deberia dispararse si la transaccion hace rollback.
+5. Use transactions deliberately:
+   - Wrap related mutations in `DB::transaction()` inside Actions so exceptions roll back the unit of work.
+   - Use transactions for complex operations when multiple models are involved.
+   - Consider retries for deadlocks in contended paths.
+   - For emails, events, jobs, notifications, or external APIs, decide whether the effect belongs after commit, inside the transaction, or outside it. Prefer after-commit when the effect should not fire if the transaction rolls back.
 
-6. Preferir Actions explicitas sobre side effects ocultos del modelo en workflows centrales:
-   - Usar observers/events para integraciones realmente desacopladas o reacciones no criticas.
-   - Evitar que flujos centrales dependan de observers implicitos cuando una Action puede mostrar la secuencia completa directamente.
+6. Prefer explicit Actions over hidden model side effects in central workflows:
+   - Use observers/events for truly decoupled integrations or non-critical reactions.
+   - Avoid making central flows depend on implicit observers when an Action can show the full sequence directly.
 
-7. Manejar queries de forma pragmatica:
-   - Dejar lecturas simples en controllers, models, query builders, scopes o repositories ya usados por el proyecto.
-   - Crear query objects o read actions solo cuando la query sea compleja, reutilizada o codifique reglas de negocio.
-   - No forzar cada list/show query a una Action solo por simetria.
+7. Handle queries pragmatically:
+   - Leave simple reads in controllers, models, query builders, scopes, or repositories already used by the project.
+   - Create query objects or read actions only when the query is complex, reused, or encodes business rules.
+   - Do not force every list/show query into an Action just for symmetry.
 
-## Referencia
+## Reference
 
-Cargar `references/action-pattern.md` cuando haya que crear o revisar ejemplos concretos de codigo Laravel. Incluye ejemplos de controller, action, transaccion, reutilizacion, DTOs, queries y destruccion de cuenta.
+Load `references/action-pattern.md` when creating or reviewing concrete Laravel code examples. It includes examples for controllers, actions, transactions, reuse, DTOs, queries, and account deletion.
 
 ## Checklist
 
-Antes de terminar un cambio con Action Pattern, verificar:
+Before finishing an Action Pattern change, verify:
 
-- Los controllers ya no contienen la mutacion de negocio objetivo.
-- Las Actions no tienen dependencias exclusivas de HTTP.
-- Las Actions reciben datos validados, modelos y servicios de forma explicita.
-- Las escrituras de base de datos en varios pasos son transaccionales.
-- Los efectos externos estan ubicados intencionalmente respecto del commit de la transaccion.
-- Los tests cubren la Action directamente, mas un camino controller/request cuando cambio comportamiento HTTP.
+- Controllers no longer contain the targeted business mutation.
+- Actions have no HTTP-only dependencies.
+- Actions receive validated data, models, and services explicitly.
+- Multi-step database writes are transactional.
+- External effects are intentionally placed relative to the transaction commit.
+- Tests cover the Action directly, plus a controller/request path when HTTP behavior changed.
